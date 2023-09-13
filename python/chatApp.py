@@ -11,6 +11,14 @@ app.config["SESSION_PERMANENT"] = False
 app.config["SESSION_TYPE"] = "filesystem"
 
 
+connection = mysql.connector.connect(
+            user='root',
+            password='root',
+            host='mysql-db',
+            port=3306,
+            database='chat_app_db'
+        )
+
 # Retrieve the room files path from environment variable
 room_files_path = os.getenv('ROOM_FILES_PATH')
 users_path = os.getenv('USERS_PATH')
@@ -41,14 +49,6 @@ def check_user_credentials(username, password):
 @app.route('/')
 def logOut():
     try:
-        connection = mysql.connector.connect(
-            user='root',
-            password='root',
-            host='mysql-db',
-            port=3306,
-            database='chat_app_db'
-        )
-        cursor = connection.cursor()
         cursor = connection.cursor()
         cursor.execute("SELECT * FROM users")
         data = cursor.fetchall()
@@ -100,17 +100,17 @@ def lobby():
         if request.method == 'POST':
             room_name = request.form['new_room']
             try:
-                with open(f'{room_files_path}{room_name}.txt', 'x') as f:
-                    f.write('')
-            except FileNotFoundError:
-                print("The given room name already exists")
+                cursor = connection.cursor()
+                cursor.execute('INSERT INTO `chat-app`.rooms(name) VALUES ({room_name});')
+            except mysql.connector.Error as err:
+                print(f"Error: {err}")
             print("CREATED NEW ROOM NAMED: " + room_name )
-        rooms = os.listdir(f'{room_files_path}')
-        new_rooms = [x[:-4] for x in rooms]
-        return render_template('lobby.html', rooms=new_rooms)  
+        cursor = connection.cursor()
+        cursor.execute('SELECT * FROM `chat-app`.rooms;')
+        data = cursor.fetchall()
+        return render_template('lobby.html', rooms=data)  
     else:
         return redirect('/login')
-
 
 @app.route('/chat/<room>', methods=['GET', 'POST'])
 def chat(room):
@@ -125,18 +125,12 @@ def update_chat(room):
     if request.method == 'POST':
         message = request.form['msg']
         username = session['username']
-
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        # Append the message to the room's unique .txt file
-        with open(f'{room_files_path}{room}.txt', 'a', newline='') as file:
-            file.write(f'[{timestamp}] {username}: {message}\n')           
-    with open(f'{room_files_path}{room}.txt', 'r' ) as file:
-        file.seek(0)
-        messages = file.read()
-    
-    
-    #return [session['username'],messages.split('\n')]
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")   
+        cursor = connection.cursor()
+        cursor.execute('insert into `chat-app`.messages(room,content,sender,datetime) values({room},{message},{username},{timestamp});')  
+    cursor = connection.cursor()
+    cursor.execute('SELECT * FROM `chat-app`.messages where room={room};')
+    messages = cursor.fetchall()
     return str([session['username'], str(messages.split('\n'))])
 
 
