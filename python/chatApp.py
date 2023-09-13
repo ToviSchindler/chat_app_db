@@ -2,8 +2,8 @@ from flask import Flask, render_template, request, redirect, session, jsonify
 import csv
 import os
 import base64
+import mysql.connector
 from datetime import datetime
-
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'  # Set a secret key for session management
@@ -11,18 +11,11 @@ app.config["SESSION_PERMANENT"] = False
 app.config["SESSION_TYPE"] = "filesystem"
 
 
-
-
-
-
 # Retrieve the room files path from environment variable
 room_files_path = os.getenv('ROOM_FILES_PATH')
 users_path = os.getenv('USERS_PATH')
 #room_files_path = "rooms/"
-#users_path = "users.csv"
 print(room_files_path)
-
-
 
 
 # Helper functions for user authentication
@@ -30,13 +23,10 @@ def encode_password(password):
     encoded_bytes = base64.b64encode(password.encode('utf-8'))
     return encoded_bytes.decode('utf-8')
 
-
  
 def decode_password(encoded_password):
     decoded_bytes = base64.b64decode(encoded_password.encode('utf-8'))
     return decoded_bytes.decode('utf-8')
-
-
 
 
 def check_user_credentials(username, password):
@@ -47,19 +37,25 @@ def check_user_credentials(username, password):
                 return True
     return False
 
-
-
-
-
-
-
-
 # Routes
 @app.route('/')
-def index():
-    return redirect('/register')
-
-
+def logOut():
+    try:
+        connection = mysql.connector.connect(
+            user='root',
+            password='root',
+            host='mysql-db',
+            port=3306,
+            database='chat_app_db'
+        )
+        cursor = connection.cursor()
+        cursor = connection.cursor()
+        cursor.execute("SELECT * FROM users")
+        data = cursor.fetchall()
+        # Process the retrieved data
+        return "Data: " + str(data)
+    except mysql.connector.Error as err:
+        return f"Error: {err}"
 
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -78,8 +74,6 @@ def register():
     return render_template('register.html')
 
 
-
-
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -94,17 +88,10 @@ def login():
     return render_template('login.html')
 
 
-@app.route('/health')
-def health():
-    return "ok,200"
-
-
 @app.route('/logout')
 def logout():
     session.pop('username', None)
     return redirect('/login')
-
-
 
 
 @app.route('/lobby', methods=['GET', 'POST'])
@@ -125,8 +112,6 @@ def lobby():
         return redirect('/login')
 
 
-
-
 @app.route('/chat/<room>', methods=['GET', 'POST'])
 def chat(room):
     if 'username' in session:
@@ -135,41 +120,17 @@ def chat(room):
         return redirect('/login')
 
 
-def delete_user_msg(room_name,username):
-    inputFile = f'{room_files_path}{room_name}.txt'
-    with open(inputFile, 'r') as filedata:
-        inputFilelines = filedata.readlines()
-        with open(inputFile, 'w') as filedata:
-            for textline in inputFilelines:
-                [hour,msg] = textline.split(']')
-                [msg_sender,msg_text] = msg.split(':')
-                if msg_sender.split(':')[0] != ' ' + username:
-                    filedata.write(textline)
-        filedata.close()  
-
-       
-
-
-
-
 @app.route('/api/chat/<room>', methods=['GET','POST'])
 def update_chat(room):
     if request.method == 'POST':
+        message = request.form['msg']
         username = session['username']
 
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        if request.args.get('clear'):
-            delete_user_msg(room,username)
-        else:
-            message = request.form['msg']
-
-
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-
-            # Append the message to the room's unique .txt file
-            with open(f'{room_files_path}{room}.txt', 'a', newline='') as file:
-                file.write(f'[{timestamp}] {username}: {message}\n')           
+        # Append the message to the room's unique .txt file
+        with open(f'{room_files_path}{room}.txt', 'a', newline='') as file:
+            file.write(f'[{timestamp}] {username}: {message}\n')           
     with open(f'{room_files_path}{room}.txt', 'r' ) as file:
         file.seek(0)
         messages = file.read()
@@ -177,8 +138,6 @@ def update_chat(room):
     
     #return [session['username'],messages.split('\n')]
     return str([session['username'], str(messages.split('\n'))])
-
-
 
 
 if __name__ == '__main__':
