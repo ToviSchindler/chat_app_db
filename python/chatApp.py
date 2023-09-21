@@ -37,6 +37,13 @@ def check_user_credentials(username, password):
                 return True
     return False
 
+def is_exist(user):
+    cursor.execute("select * from users where UserName={user.username} and password={user.password}")
+    data = cursor.fetchall()
+    if data:
+        return True
+    return False
+
 # Routes
 @app.route('/')
 def logOut():
@@ -60,22 +67,31 @@ def logOut():
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        encoded_password = encode_password(password)
-        
-        # Save user details to the CSV file
-        with open(users_path, 'a', newline='') as file:
-            writer = csv.writer(file)
-            writer.writerow([username, encoded_password])
-        
+    user = {
+    'username': request.form['username'],
+    'password': request.form['password']
+    } 
+    if(is_exist(user)):
         return redirect('/login')
+
+    # if request.method == 'POST':
+    #     username = request.form['username']
+    #     password = request.form['password']
+    #     encoded_password = encode_password(password)
+        
+    #     # Save user details to the CSV file
+    #     with open(users_path, 'a', newline='') as file:
+    #         writer = csv.writer(file)
+    #         writer.writerow([username, encoded_password])
+        
+    #     return redirect('/login')
     return render_template('register.html')
 
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    
+
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
